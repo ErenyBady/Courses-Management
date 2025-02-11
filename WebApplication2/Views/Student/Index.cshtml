@@ -126,6 +126,9 @@
         // 📌 Remove Assigned Course
         $("#assignedCourses").on("click", ".removeCourse", function () {
             var courseId = $(this).parent().data("id");
+                console.log($(this).parent()); // Check what element is selected
+    console.log($(this).parent().data()); // Check available data attributes
+    console.log(courseId); // Verify courseId value
             var studentId = $("#studentResults li.selected").data("id");
 
             if (!studentId) {

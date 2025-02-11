@@ -45,7 +45,7 @@ namespace WebApplication2.Controllers
             .ToList();
             var assignedCourses = _context.StudentCourses
                 .Where(sc => sc.StudentID == studentId)
-                .Select(sc => new { sc.CourseID, sc.Course.Name })
+                .Select(sc => new { sc.Course.Id, sc.Course.Name })
             .ToList();
             var availableCourses = _context.CourseLevels
                 .Where(cl => cl.LevelID == student.LevelId && !assignedCoursesIDs.Contains(cl.CourseID))
