@@ -1,0 +1,178 @@
+﻿@{
+    ViewData["Title"] = "Student Course Assignment";
+}
+<!-- Bootstrap CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+<style>
+    #studentListContainer {
+        max-height: 300px; /* Fixed height */
+        overflow-y: auto; /* Enable vertical scrollbar */
+        border: 1px solid #ddd;
+        padding: 10px;
+    }
+</style>
+<div class="container mt-4">
+    <h2 class="text-primary">Assign Courses to Student</h2>
+
+    <!-- Student Search -->
+    <div class="mb-3">
+        <input type="text" id="studentSearch" class="form-control" placeholder="Search for student..." autocomplete="off">
+        <ul id="studentResults" class="list-group mt-2 position-absolute w-50"></ul>
+    </div>
+
+    <!-- Course Assignment Section -->
+    <div id="courseSection" class="card mt-4 p-3" style="display: none;">
+        <h4 class="text-secondary">Available Courses</h4>
+        <ul id="availableCourses" class="list-group mb-3"></ul>
+
+        <h4 class="text-secondary">Assigned Courses</h4>
+        <ul id="assignedCourses" class="list-group"></ul>
+
+        <button id="clearSelection" class="btn btn-danger mt-3">Clear Selection</button>
+    </div>
+
+    <!-- View All Students Button -->
+    <button id="viewAllStudents" class="btn btn-primary mt-4">View All Students</button>
+</div>
+
+<!-- Student Modal -->
+<div class="modal fade" id="studentModal" tabindex="-1" aria-labelledby="studentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="studentModalLabel">All Students</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="studentListContainer">
+                <ul id="studentList" class="list-group"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- jQuery & Bootstrap JS -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    $(document).ready(function () {
+        // 📌 Student Search Autocomplete
+        $("#studentSearch").on("keyup", function () {
+            var query = $(this).val();
+            if (query.length >= 3) {
+                $.getJSON('/Student/SearchStudents', { term: query }, function (data) {
+                    $("#studentResults").empty().show();
+                    $.each(data, function (i, student) {
+                        $("#studentResults").append(`<li class="list-group-item list-group-item-action" data-id="${student.id}">${student.name}</li>`);
+                    });
+                });
+            } else {
+                $("#studentResults").hide();
+            }
+        });
+
+        // 📌 Select Student & Show Courses
+        $("#studentResults").on("click", "li", function () {
+            var studentId = $(this).data("id");
+            console.log(studentId)
+            $("#studentResults li").removeClass("selected"); // Remove existing selection
+            $(this).addClass("selected");
+             $("#studentResults").hide();
+             $("#studentSearch").val($(this).text());
+
+            $("#courseSection").fadeIn();
+            $("#availableCourses, #assignedCourses").empty();
+
+            $.getJSON('/Student/GetCoursesForStudent', { studentId: studentId }, function (data) {
+                $.each(data.availableCourses, function (i, course) {
+                    $("#availableCourses").append(`<li class="list-group-item d-flex justify-content-between" data-id="${course.id}">
+                        ${course.name} <button class="btn btn-sm btn-success assignCourse">Assign</button>
+                    </li>`);
+                });
+
+                $.each(data.assignedCourses, function (i, course) {
+                    console.log(course)
+                    $("#assignedCourses").append(`<li class="list-group-item d-flex justify-content-between" data-id="${course.id}">
+                        ${course.name} <button class="btn btn-sm btn-danger removeCourse">Remove</button>
+                    </li>`);
+                });
+            });
+        });
+
+        // 📌 Assign Course
+        $("#availableCourses").on("click", ".assignCourse", function () {
+            var courseId = $(this).parent().data("id");
+            var studentId = $("#studentResults li.selected").data("id");
+            console.log(studentId)
+            if (!studentId) {
+                alert("Please select a student first!");
+                return;
+            }
+
+            $.post("/Student/AssignCourses", { studentId: studentId, courseIds: [courseId] }, function (response) {
+                if (response.success) {
+                    var courseItem = $(this).parent().clone();
+                    $(this).parent().remove();
+                    courseItem.find("button").removeClass("assignCourse btn-success").addClass("removeCourse btn-danger").text("Remove");
+                    $("#assignedCourses").append(courseItem);
+                } else {
+                    alert("Error assigning course.");
+                }
+            }.bind(this));
+        });
+
+        // 📌 Remove Assigned Course
+        $("#assignedCourses").on("click", ".removeCourse", function () {
+            var courseId = $(this).parent().data("id");
+            var studentId = $("#studentResults li.selected").data("id");
+
+            if (!studentId) {
+                alert("Please select a student first!");
+                return;
+            }
+
+            $.post("/Student/RemoveAssignedCourses", { studentId: studentId, courseIds: [courseId] }, function (response) {
+                if (response.success) {
+                    var courseItem = $(this).parent().clone();
+                    $(this).parent().remove();
+                    courseItem.find("button").removeClass("removeCourse btn-danger").addClass("assignCourse btn-success").text("Assign");
+                    $("#availableCourses").append(courseItem);
+                } else {
+                    alert("Error removing course.");
+                }
+            }.bind(this));
+        });
+
+        // 📌 Clear Selection
+        $("#clearSelection").on("click", function () {
+            $("#studentSearch").val("");
+            $("#studentResults, #availableCourses, #assignedCourses").empty();
+            $("#courseSection").fadeOut();
+        });
+
+        // 📌 View All Students (Modal)
+        $("#viewAllStudents").on("click", function () {
+            $("#studentModal").modal("show");
+
+            $.getJSON('/Student/ViewAllStudents', function (data) {
+                $("#studentList").empty();
+                $.each(data, function (i, student) {
+                    $("#studentList").append(`<li class="list-group-item d-flex justify-content-between">
+                        ${student.name} <button class="btn btn-sm btn-secondary editStudent" data-id="${student.id}">Edit</button>
+                    </li>`);
+                });
+            });
+        });
+
+        // 📌 Edit Student from Modal
+        $("#studentList").on("click", ".editStudent", function () {
+            var studentId = $(this).data("id");
+            $("#studentModal").modal("hide");
+            $("#studentSearch").val($(this).parent().text());
+            $("#studentResults").empty().append(`<li data-id="${studentId}" class="list-group-item list-group-item-action selected">${$(this).parent().text()}</li>`);
+            $("#studentResults li").click();
+        });
+    });
+</script>
